@@ -1,0 +1,8 @@
+node_modules
+dist
+*.local
+.DS_Store
+*.db
+.env
+.env.local
+backend/data/app.db

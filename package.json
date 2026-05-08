@@ -1,0 +1,17 @@
+{
+  "name": "my-story-helper",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently -n FE,BE -c cyan,magenta \"npm run dev -w frontend\" \"npm run dev -w backend\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "dependencies": {
+    "prosemirror-model": "^1.25.4"
+  }
+}

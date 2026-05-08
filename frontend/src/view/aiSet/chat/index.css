@@ -1,0 +1,98 @@
+/* 整页左右布局（flex），不使用 antd Layout */
+.chat-page {
+  display: flex;
+  align-items: stretch;
+  min-height: calc(100vh - 48px);
+  max-width: 1200px;
+  margin: 0 auto;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.chat-page__aside {
+  width: 240px;
+  flex-shrink: 0;
+  padding: 16px;
+  border-right: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.chat-page__title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.chat-page__aside-note {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.chat-page__main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 16px;
+}
+
+.chat-page__messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fafafa;
+}
+
+.chat-page__row {
+  margin-bottom: 12px;
+}
+
+.chat-page__row--user {
+  text-align: right;
+}
+
+.chat-page__row--assistant {
+  text-align: left;
+}
+
+.chat-page__role {
+  margin-right: 8px;
+}
+
+.chat-page__bubble {
+  display: inline-block;
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  text-align: left;
+}
+
+.chat-page__bubble--user {
+  background: #1677ff;
+  color: #fff;
+  border: none;
+}
+
+.chat-page__bubble--assistant {
+  background: #fff;
+  color: inherit;
+  border: 1px solid #f0f0f0;
+}
+
+.chat-page__composer {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat-page__compact {
+  width: 100%;
+}

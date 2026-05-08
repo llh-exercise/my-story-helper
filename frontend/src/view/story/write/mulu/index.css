@@ -1,0 +1,72 @@
+/* 写作页左侧 Sider：占满高度，便于内部树区域滚动 */
+.write-page-sider-mulu.ant-layout-sider {
+  height: 100%;
+  max-height: 100%;
+}
+
+.write-page-sider-mulu > .ant-layout-sider-children {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.mulu-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.mulu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+/* 章节树区域单独纵向滚动，标题栏固定 */
+.mulu-tree-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+}
+
+.mulu-tree-scroll .ant-spin-nested-loading {
+  min-height: 100%;
+}
+
+.mulu-tree-scroll .ant-spin-container {
+  min-height: 100%;
+}
+
+.mulu-tree .mulu-tree-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding-right: 4px;
+  box-sizing: border-box;
+}
+
+.mulu-tree .mulu-tree-title-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mulu-tree .mulu-tree-title-actions {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}

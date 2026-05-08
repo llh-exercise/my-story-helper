@@ -1,0 +1,227 @@
+/* 写作区整体（卷/章布局） */
+.write-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 16px;
+  box-sizing: border-box;
+  background: #fafafa;
+  overflow: hidden;
+}
+
+.write-page--center {
+  align-items: center;
+  justify-content: center;
+}
+
+.write-page--volume {
+  overflow: hidden;
+}
+
+.write-page__heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  margin-bottom: 12px;
+}
+
+.write-page__heading-row .write-page__heading {
+  margin: 0 !important;
+  flex: 1;
+  min-width: 0;
+}
+
+/* 细纲占满父级剩余高度 */
+.write-page__outline-fill {
+  flex: 1;
+  min-height: 120px;
+  position: relative;
+  display: block;
+}
+
+.write-page__outline-fill textarea {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100% !important;
+  min-height: 120px;
+  resize: none;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+.write-page--chapter {
+  gap: 0;
+}
+
+.write-page__section {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.write-page__outline-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.write-page__outline-toolbar .write-page__section-label {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+/* 章节：细纲与正文约 1:2 分配垂直空间 */
+.write-page__outline-section {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: none;
+  flex-shrink: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.write-page__section-label {
+  flex-shrink: 0;
+}
+
+.write-page__ai-gap {
+  flex-shrink: 0;
+  height: 64px;
+  min-height: 64px;
+  margin: 8px 0;
+  border: 1px dashed #d9d9d9;
+  border-radius: 6px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.write-page__body-section {
+  flex: 4 1 0;
+  min-height: 0;
+  flex-shrink: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.write-page__body-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.write-page__editor-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.write-page__editor-wrap .novel-write {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: none;
+  height: 100%;
+  overflow: hidden;
+}
+
+.write-page__editor-wrap .novel-write__editor {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 保存正文条固定；其余区域（挂载 ProseMirror 的容器）单独滚动 */
+.write-page__editor-wrap .novel-write__editor > .novel-write__editor-bar {
+  flex-shrink: 0;
+  order: -1;
+}
+
+.write-page__editor-wrap .novel-write__editor > *:not(.novel-write__editor-bar) {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.write-page__editor-wrap .novel-write__editor-bar {
+  flex-shrink: 0;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.write-page__editor-wrap .novel-write__editor .ProseMirror {
+  min-height: unset;
+  outline: none;
+  padding: 16px 20px;
+  line-height: 1.85;
+  font-size: 16px;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+.write-page__editor-wrap .novel-write__editor .ProseMirror p {
+  margin: 0 0 0.85em;
+}
+
+.write-page__editor-wrap .novel-write__editor .ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+
+/* novel / TipTap 编辑区基础样式（项目未使用 Tailwind，需自行保证可读与高度） */
+.novel-write {
+  height: 100%;
+  border: 1px solid #f0f0f0;
+  /* border-radius: 8px; */
+  background: #fff;
+}
+
+.novel-write__editor .ProseMirror {
+  min-height: 55vh;
+  outline: none;
+  padding: 16px 20px;
+  line-height: 1.85;
+  font-size: 16px;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+.novel-write__editor .ProseMirror p {
+  margin: 0 0 0.85em;
+}
+
+.novel-write__editor .ProseMirror p:last-child {
+  margin-bottom: 0;
+}
+
+.novel-write__editor .ProseMirror-focused {
+  outline: none;
+}
+
+/* Placeholder 扩展使用的 data-placeholder */
+.novel-write__editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #bfbfbf;
+  pointer-events: none;
+  height: 0;
+}

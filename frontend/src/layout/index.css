@@ -1,0 +1,21 @@
+/* 整页高度锁在视口内，避免最外层 ant-layout 出现滚动条 */
+.app-layout {
+  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-layout .ant-layout-header {
+  flex-shrink: 0;
+}
+
+/* 主内容区占满剩余高度；子页面（如 aiSet）用 flex:1 + min-height:0 继续填满 */
+.app-layout .ant-layout-content.content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
