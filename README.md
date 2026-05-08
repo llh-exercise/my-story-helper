@@ -1,3 +1,5 @@
+# my-story-helper
+
 此系统目标为ai辅助写小说，人工润色
 
 使用技术：react + nodejs + sqlite
@@ -17,3 +19,33 @@
 根据大纲+细纲生成本章内容
 
 没有向量、生成章节时的角色、势力等内容的选取等功能
+
+> AI 驱动的长篇创作平台。
+
+## 技术栈
+
+| 层 | 技术 |
+|---|---|
+| 后端框架 | nodejs express |
+| AI 模型 | deepseek |
+| 向量数据库 | sqlite |
+| 主数据库 | SQLite |
+| 前端 | react + TypeScript + Vite + antdesign |
+| 状态管理 | zustand |
+
+## 快速开始
+
+### 环境要求
+- Node.js 18+
+
+### 1.克隆仓库
+
+### 2.下载依赖
+- npm i
+
+### 3.启动项目
+- npm run dev
+
+### 4.配置deepseek api
+
+### 5.开始创建小说
