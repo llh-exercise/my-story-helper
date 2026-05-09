@@ -3,7 +3,7 @@ import type { LanguageModel } from 'ai';
 import type { LlmKeyConfig } from '../types/llmKeyTypes.js';
 
 /**
- * 根据配置创建 AI SDK 对话模型（DeepSeek / 豆包 OpenAI 兼容端点）
+ * 根据配置创建 AI SDK 对话模型（当前仅 DeepSeek）
  */
 export function createChatModel(cfg: LlmKeyConfig): LanguageModel {
   const key = (cfg.apiKey || '').trim();

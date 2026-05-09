@@ -59,11 +59,26 @@ export function parseSummaryFromDbJson(raw: string): ChapterVectorSummaryPayload
   }
 }
 
-/** 本故事下所有「已具备非空向量」的章节，用于 RAG 检索 */
+/**
+ * 为本故事构建「向量检索候选池」，供正文生成 RAG 使用（见 chapterGenerateBody）。
+ *
+ * 检索分两阶段，本函数只做第一阶段——**取出可用向量**，不做相似度打分：
+ * 1. **此处**：从 story_chapter_embedding 读出同一 storyId 下所有「已算出有效向量」的章节，
+ *    得到 { chapterId, vec }[]，作为余弦相似度检索的全集。
+ * 2. **调用方**：用当前章细纲 `generateEmbedding` 得到 queryVec，再经 `topKSimilarByEmbedding`
+ *    在候选池上做 Top-K、并剔除邻居章 id，最后按命中 chapterId 去 story_chapter 取正文拼进 prompt。
+ *
+ * SQL 侧过滤含义：
+ * - `dimensions > 0`：`upsertChapterEmbedding` 若仅写摘要占位会向量为 []、dimensions=0，此类行不参与检索。
+ * - `embedding` 非空且不是 `'[]'`：排除尚未嵌入或占位空数组。
+ *
+ * 内存侧再校验：JSON 解析失败、非数组、长度与 dimensions 不一致、含 NaN 的行一律丢弃，避免脏数据参与相似度。
+ */
 export function listChapterEmbeddingsWithVectorsForStory(
   storyId: number,
 ): { chapterId: number; vec: number[] }[] {
   const db = getDb();
+  // 仅拉 chapter_id + 向量串 + 标称维度；摘要/原文在此阶段不需要，减少 IO
   const rows = db
     .prepare(
       `SELECT chapter_id, embedding, dimensions
@@ -78,6 +93,7 @@ export function listChapterEmbeddingsWithVectorsForStory(
       const vec = JSON.parse(r.embedding) as unknown;
       if (!Array.isArray(vec) || vec.length === 0) continue;
       const nums = vec.map((x) => Number(x));
+      // 与入库时的 dimensions 一致才认为可用，防止半写入或篡改导致维度错位
       if (nums.length !== r.dimensions || nums.some((n) => Number.isNaN(n))) continue;
       out.push({ chapterId: r.chapter_id, vec: nums });
     } catch {

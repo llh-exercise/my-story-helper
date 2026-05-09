@@ -1,31 +1,28 @@
 import { apiUrl } from './rest.ts';
-import type { LlmConfigParams } from '../types/config.ts';
+import type {
+  LlmConfigListResponse,
+  LlmConfigSavePayload,
+} from '../types/config.ts';
 import { http } from './http.js';
+
 /**
- * 模型配置（服务端 data/config.json 明文）
+ * 大模型多用途配置（SQLite llm_config，按 purpose 一行）
  */
 export const configApi = {
-  /** GET /api/config */
-  get() {
-    return http.get<LlmConfigParams>(apiUrl('/config')).then((res) => res.data);
+  /** GET /api/config：已保存的配置列表 */
+  list() {
+    return http.get<LlmConfigListResponse>(apiUrl('/config')).then((res) => res.data);
   },
 
   /**
-   * POST /api/config
-   * 保存/更新配置（服务端当前为整体覆盖写入）
-   * @param {LlmConfigParams} payload
+   * POST /api/config：按 purpose 新增或覆盖该用途的配置
    */
-  save(payload: LlmConfigParams) {
-    return http.post<LlmConfigParams>(apiUrl('/config'), payload).then((res) => res.data);
+  save(payload: LlmConfigSavePayload) {
+    return http
+      .post<{ ok: boolean; purpose: string; provider: string; apiBase: string; model: string; hasApiKey: boolean }>(
+        apiUrl('/config'),
+        payload,
+      )
+      .then((res) => res.data);
   },
 };
-
-/**
- * 健康检查
- */
-// export const healthApi = {
-//   /** GET /api/health */
-//   get() {
-//     return rest.get('/hea   lth');
-//   },
-// };

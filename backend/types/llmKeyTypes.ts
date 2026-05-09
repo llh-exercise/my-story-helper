@@ -1,4 +1,4 @@
-export type LlmProvider = 'deepseek' | 'doubao' | 'dashscope';
+export type LlmProvider = 'deepseek' | 'dashscope';
 
 /** llm_config.purpose 取值（与数据库一致） */
 export const LLM_PURPOSE_GENERATE_TEXT = '生成文字' as const;

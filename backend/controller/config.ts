@@ -1,37 +1,70 @@
 import type { Request, Response } from 'express';
-import { readLlmConfig, writeLlmConfig, getDefaultKeyConfig } from '../service/config.js';
+import {
+  getDefaultKeyConfig,
+  listLlmConfigs,
+  readLlmConfigByPurpose,
+  writeLlmConfigByPurpose,
+} from '../service/config.js';
 import type { LlmKeyConfig, LlmProvider } from '../types/index.js';
+import {
+  LLM_PURPOSE_GENERATE_EMBEDDING,
+  LLM_PURPOSE_GENERATE_TEXT,
+} from '../types/llmKeyTypes.js';
 
 export function getConfig(_req: Request, res: Response): void {
-  const cfg = readLlmConfig();
-  res.json({
-    provider: cfg.provider,
-    apiBase: cfg.apiBase || '',
-    model: cfg.model,
-    /** 明文返回，仅建议在可信环境使用 */
-    apiKey: cfg.apiKey || '',
-    hasApiKey: Boolean((cfg.apiKey || '').trim()),
-  });
+  const items = listLlmConfigs().map((row) => ({
+    purpose: row.purpose,
+    provider: row.provider,
+    apiBase: row.apiBase || '',
+    model: row.model,
+    apiKey: row.apiKey || '',
+    hasApiKey: Boolean((row.apiKey || '').trim()),
+    updatedAt: row.updatedAt,
+  }));
+  res.json({ items });
+}
+
+function parseProviderForPurpose(body: Record<string, unknown>, purpose: string): LlmProvider {
+  const raw = body?.provider;
+  if (purpose === LLM_PURPOSE_GENERATE_TEXT) {
+    return 'deepseek';
+  }
+  if (raw === 'deepseek' || raw === 'dashscope') {
+    return raw;
+  }
+  return 'dashscope';
 }
 
 export function postConfig(req: Request, res: Response): void {
   try {
     const body = req.body as Record<string, unknown> | undefined;
-    const prev = readLlmConfig();
-    const provider = body?.provider === 'doubao' ? 'doubao' : 'deepseek';
+    const purposeRaw = typeof body?.purpose === 'string' ? body.purpose.trim() : '';
+    if (purposeRaw !== LLM_PURPOSE_GENERATE_TEXT && purposeRaw !== LLM_PURPOSE_GENERATE_EMBEDDING) {
+      res.status(400).json({
+        error: '请指定有效的模型用途（生成文字 / 生成向量）',
+      });
+      return;
+    }
+
+    const prev = readLlmConfigByPurpose(purposeRaw);
+    const provider = parseProviderForPurpose(body ?? {}, purposeRaw);
     const apiKey =
       typeof body?.apiKey === 'string' && body.apiKey.trim() !== ''
         ? body.apiKey.trim()
-        : (prev.apiKey || '').trim();
-    const apiBase = typeof body?.apiBase === 'string' ? body.apiBase : '';
-    const model =
-      typeof body?.model === 'string' ? body.model : getDefaultKeyConfig().model;
+        : (prev?.apiKey || '').trim();
+    const apiBase = typeof body?.apiBase === 'string' ? body.apiBase.trim() : '';
+    const modelRaw = typeof body?.model === 'string' ? body.model.trim() : '';
+    const defaultModel =
+      purposeRaw === LLM_PURPOSE_GENERATE_EMBEDDING
+        ? 'text-embedding-v3'
+        : getDefaultKeyConfig().model;
+    const model = modelRaw || (prev?.model || '').trim() || defaultModel;
 
     const next: LlmKeyConfig = {
-      provider: provider as LlmProvider,
+      provider,
       apiKey,
-      apiBase: apiBase.trim(),
-      model: model.trim(),
+      apiBase,
+      model,
     };
 
     if (!next.apiKey) {
@@ -43,9 +76,10 @@ export function postConfig(req: Request, res: Response): void {
       return;
     }
 
-    writeLlmConfig(next);
+    writeLlmConfigByPurpose(purposeRaw, next);
     res.json({
       ok: true,
+      purpose: purposeRaw,
       provider: next.provider,
       apiBase: next.apiBase,
       model: next.model,
