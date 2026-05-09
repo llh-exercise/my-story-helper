@@ -14,11 +14,11 @@
 
 
 当前实现：
-只对接deepseek
-只初步实现了根据大纲生成章节目录
-根据大纲+细纲生成本章内容
+对接deepseek 和 text-embedding-v3
+前者实现根据大纲生成章节目录，根据细纲生成文章内容，根据文章内容生成摘要
+后者实现根据摘要生成向量
+在生成文章时，会检索向量，如果命中，就会和大纲、卷细纲、前后五章细纲 一起组成提示词
 
-没有向量、生成章节时的角色、势力等内容的选取等功能
 
 > AI 驱动的长篇创作平台。
 
@@ -26,8 +26,8 @@
 
 | 层 | 技术 |
 |---|---|
-| 后端框架 | nodejs express |
-| AI 模型 | deepseek |
+| 后端框架 | nodejs + express |
+| AI 模型 | deepseek + text-embedding-v3 |
 | 向量数据库 | sqlite |
 | 主数据库 | SQLite |
 | 前端 | react + TypeScript + Vite + antdesign |
