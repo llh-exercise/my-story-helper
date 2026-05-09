@@ -166,30 +166,38 @@ export function updateChapter(
   return getChapterById(storyId, chapterId);
 }
 
-export type ChapterGenerationTrailItem = {
-  title: string;
-  outline: string;
-  isCurrent: boolean;
-};
+/** 生成正文 RAG：故事/卷/当前章 + 前后各 5 章细纲窗口 + 向量邻居集合 */
+export type ChapterNeighborItem = { id: number; title: string; outline: string };
 
-export type ChapterGenerationContext = {
+export type ChapterRagBundle = {
   storyTitle: string;
   storyOutline: string;
   volumeTitle: string;
   volumeOutline: string;
-  chapterOutlinesTrail: ChapterGenerationTrailItem[];
+  currentChapterId: number;
   currentChapterTitle: string;
+  currentChapterOutline: string;
+  prevFive: ChapterNeighborItem[];
+  nextFive: ChapterNeighborItem[];
+  /** 当前章 + 前后五章 id：向量命中这些章时丢弃参考正文，以细纲为准 */
+  neighborChapterIds: Set<number>;
 };
 
+const RAG_NEIGHBOR_WINDOW = 5;
+
 /**
- * 组装「根据细纲生成本章正文」所需上下文：故事总纲、卷细纲、本卷内本章及之前各章细纲
- * @param chapterOutlineDraft 若传入字符串（可为空），作为本章细纲；否则用数据库中的本章细纲
+ * 为「根据细纲生成正文」提供结构化上下文：
+ * - 故事/卷/当前章细纲（请求体可带本章细纲草稿覆盖库中值）；
+ * - 同卷按 sort_order 切出当前章前、后各至多 windowSize 章的细纲；
+ * - neighborChapterIds = 当前章 ∪ 前窗 ∪ 后窗，供向量检索侧整批排除，
+ *   使邻居关系仅由细纲约束，不向模型注入这些章的检索正文，减少与细纲冲突。
  */
-export function getChapterGenerationContext(
+export function getChapterRagBundle(
   storyId: number,
   chapterId: number,
   chapterOutlineDraft?: string,
-): ChapterGenerationContext | null {
+  windowSize = RAG_NEIGHBOR_WINDOW,
+): ChapterRagBundle | null {
   const story = getStoryById(storyId);
   if (!story) {
     return null;
@@ -223,24 +231,39 @@ export function getChapterGenerationContext(
     return null;
   }
 
-  const trail: ChapterGenerationTrailItem[] = siblings.slice(0, idx + 1).map((s) => ({
+  const currentOutline =
+    chapterOutlineDraft !== undefined ? chapterOutlineDraft : (siblings[idx].outline ?? '');
+
+  const prevFive: ChapterNeighborItem[] = siblings
+    .slice(Math.max(0, idx - windowSize), idx)
+    .map((s) => ({
+      id: s.id,
+      title: s.title,
+      outline: s.outline ?? '',
+    }));
+  const nextFive: ChapterNeighborItem[] = siblings.slice(idx + 1, idx + 1 + windowSize).map((s) => ({
+    id: s.id,
     title: s.title,
-    outline:
-      s.id === chapterId
-        ? chapterOutlineDraft !== undefined
-          ? chapterOutlineDraft
-          : (s.outline ?? '')
-        : (s.outline ?? ''),
-    isCurrent: s.id === chapterId,
+    outline: s.outline ?? '',
   }));
+
+  const neighborChapterIds = new Set<number>([
+    chapterId,
+    ...prevFive.map((p) => p.id),
+    ...nextFive.map((n) => n.id),
+  ]);
 
   return {
     storyTitle: story.title,
     storyOutline: story.outline ?? '',
     volumeTitle: volume.title,
     volumeOutline: volume.outline ?? '',
-    chapterOutlinesTrail: trail,
+    currentChapterId: chapterId,
     currentChapterTitle: chapter.title,
+    currentChapterOutline: currentOutline,
+    prevFive,
+    nextFive,
+    neighborChapterIds,
   };
 }
 

@@ -2,6 +2,7 @@ import cors from 'cors'
 import express from 'express'
 import {
   ensureLlmConfigTable,
+  ensureStoryChapterEmbeddingTable,
   ensureStoryChapterTable,
   ensureStoryListTable,
 } from './db/index.js'
@@ -10,6 +11,7 @@ import apiRoutes from './routes/index.js';
 ensureLlmConfigTable()
 ensureStoryListTable()
 ensureStoryChapterTable()
+ensureStoryChapterEmbeddingTable()
 
 
 const app = express()

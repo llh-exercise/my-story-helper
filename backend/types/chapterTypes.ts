@@ -12,3 +12,12 @@ export interface StoryChapter {
   sortOrder: number;
   createTime: string;
 }
+
+/** 章节结构化摘要（向量/RAG 用，与前端 ChapterVectorSummary 一致） */
+export type ChapterVectorSummaryPayload = {
+  characters: string;
+  plot: string;
+  powerChanges: string;
+  foreshadowing: string;
+  locations: string;
+};

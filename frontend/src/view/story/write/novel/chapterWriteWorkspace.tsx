@@ -2,9 +2,10 @@ import type { JSONContent } from 'novel';
 import { EditorContent, EditorRoot, Placeholder, StarterKit, useEditor } from 'novel';
 import { Button, Input, Spin, Typography, message } from 'antd';
 import { useEffect, useState } from 'react';
-import type { StoryChapter } from '../../../../types/chapter';
+import type { ChapterVectorSummary, StoryChapter } from '../../../../types/chapter';
 import { storyApi } from '../../../../api/story';
 import { useOutlineDraftSave } from './outlineDraftSave';
+import { ChapterVectorSummaryDialog } from './chapterVectorSummaryDialog';
 
 export type ChapterWriteWorkspaceProps = {
   storyId: number;
@@ -65,7 +66,9 @@ function ChapterSaveBar(props: {
   const { editor } = useEditor();
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
-
+  const [vectorLoading, setVectorLoading] = useState(false);
+  const [vectorDialogOpen, setVectorDialogOpen] = useState(false);
+  const [vectorSummary, setVectorSummary] = useState<ChapterVectorSummary | null>(null);
   const onGenerate = async () => {
     if (!editor) return;
     try {
@@ -103,6 +106,25 @@ function ChapterSaveBar(props: {
     }
   };
 
+  const onGenerateVector = async () => {
+    setVectorDialogOpen(true);
+    setVectorLoading(true);
+    try {
+      const { summary, cached } = await storyApi.summarizeChapterBodyForVector(props.storyId, props.chapterId, {
+        regenerate: false,
+      });
+      setVectorSummary(summary);
+      message.success(cached ? '已载入向量库中的摘要' : '摘要已生成并写入向量库');
+    } catch (e) {
+      console.error(e);
+      setVectorDialogOpen(false);
+      setVectorSummary(null);
+      message.error(e instanceof Error ? e.message : '根据正文生成摘要失败');
+    } finally {
+      setVectorLoading(false);
+    }
+  };
+  
   return (
     <>
       <Button size="small" loading={generating} disabled={!editor || saving} onClick={() => void onGenerate()}>
@@ -111,6 +133,27 @@ function ChapterSaveBar(props: {
       <Button type="primary" size="small" loading={saving} disabled={!editor || generating} onClick={() => void onSave()}>
         保存正文
       </Button>
+      <Button
+        size="small"
+        loading={vectorLoading}
+        disabled={!editor || saving || generating}
+        onClick={() => void onGenerateVector()}
+      >
+        根据正文生成向量
+      </Button>
+      <ChapterVectorSummaryDialog
+        open={vectorDialogOpen}
+        summary={vectorSummary}
+        summaryLoading={vectorLoading}
+        storyId={props.storyId}
+        chapterId={props.chapterId}
+        onSummaryChange={(s) => {
+          setVectorSummary(s);
+        }}
+        onClose={() => {
+          setVectorDialogOpen(false);
+        }}
+      />
     </>
   );
 }

@@ -1,6 +1,6 @@
 import { apiUrl } from './rest.ts';
 import type { StoryInfo } from '../types/config.ts';
-import type { StoryChapter } from '../types/chapter.ts';
+import type { ChapterVectorSummary, StoryChapter } from '../types/chapter.ts';
 import { http } from './http.js';
 /**
  * 故事
@@ -94,6 +94,40 @@ export const storyApi = {
         body,
         { timeout: 180_000 },
       )
+      .then((res) => res.data);
+  },
+
+  /**
+   * POST /api/story/:storyId/chapters/:chapterId/summarize-body-for-vector
+   * body: { regenerate?: boolean }；默认 false 时优先读向量库，无则调模型并入库；true 时强制调模型覆盖库
+   */
+  summarizeChapterBodyForVector(
+    storyId: number,
+    chapterId: number,
+    body?: { regenerate?: boolean },
+  ) {
+    return http
+      .post<{ summary: ChapterVectorSummary; cached?: boolean }>(
+        apiUrl(`/story/${storyId}/chapters/${chapterId}/summarize-body-for-vector`),
+        body ?? {},
+        { timeout: 180_000 },
+      )
+      .then((res) => res.data);
+  },
+
+  /**
+   * POST /api/story/:storyId/chapters/:chapterId/embedding
+   * 将当前弹窗摘要写入向量库（用户编辑后落库；向量字段仍占位）
+   */
+  saveChapterEmbedding(storyId: number, chapterId: number, body: { summary: ChapterVectorSummary }) {
+    return http
+      .post<{
+        ok: true;
+        id: number;
+        dimensions: number;
+        embeddingModel: string;
+        updatedAt: number;
+      }>(apiUrl(`/story/${storyId}/chapters/${chapterId}/embedding`), body, { timeout: 120_000 })
       .then((res) => res.data);
   },
 

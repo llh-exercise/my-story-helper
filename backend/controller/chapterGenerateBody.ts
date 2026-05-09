@@ -1,33 +1,48 @@
+/**
+ * 根据细纲生成本章正文（RAG + OpenAI 兼容 DeepSeek）
+ *
+ * 流程概要：
+ * 1. 解析路由参数与请求体中的本章细纲草稿（若有则优先于库中细纲）。
+ * 2. 拉取 RAG 上下文：故事总纲、卷细纲、当前章细纲、同卷前后各至多 5 章细纲，并计算「邻居章」id 集合。
+ * 3. 将当前章细纲向量化，在本作向量库中做相似检索；检索池已排除邻居章（邻居只用细纲约束，避免与向量正文掐架）。
+ * 4. 将向量命中的章节的正文（TipTap→纯文本）截断后拼进 user prompt。
+ * 5. 使用 OpenAI SDK 调 DeepSeek chat.completions 生成正文。
+ */
 import type { Request, Response } from 'express';
-import { generateText } from 'ai';
+import OpenAI from 'openai';
+import { listChapterEmbeddingsWithVectorsForStory } from '../service/chapterEmbedding.js';
+import { getChapterById, getChapterRagBundle } from '../service/chapter.js';
 import { readLlmConfig } from '../service/config.js';
-import { createChatModel } from '../utils/chat.js';
-import { getChapterGenerationContext, type ChapterGenerationContext } from '../service/chapter.js';
+import type { LlmKeyConfig } from '../types/llmKeyTypes.js';
+import { tipTapJsonStringToPlain } from '../utils/tipTapPlainText.js';
+import { topKSimilarByEmbedding } from '../utils/vectorSimilarity.js';
+import { generateEmbedding } from '../utils/generateEmbedding.js';
+import {
+  SYSTEM_PROMPT,
+  buildRagChapterBodyUserPrompt,
+  type VectorRetrievedSnip,
+} from './chapterGenerateBodyShared.js';
 
-const SYSTEM_PROMPT = `你是一位资深网络小说作者，擅长根据大纲写出连贯、有画面感的章节正文。
-请严格遵守用户给出的故事总纲、卷细纲与章细纲，不要编造与细纲冲突的关键情节。
-只输出小说正文本身，不要输出任何前导语、标题行（如「第一章」）、结束语或解释说明。`;
+/** 向量检索返回的参考章节数量上限（不含已排除的邻居章） */
+const RAG_TOP_K = 6;
 
-function buildUserPrompt(ctx: ChapterGenerationContext): string {
-  const lines: string[] = [];
-  lines.push(`【故事标题】${ctx.storyTitle}`);
-  lines.push(`【故事总纲】\n${ctx.storyOutline || '（未填写）'}`);
-  lines.push(`【当前卷】${ctx.volumeTitle}`);
-  lines.push(`【卷细纲】\n${ctx.volumeOutline || '（未填写）'}`);
-  lines.push('【本卷内：按顺序列出本章及之前各章的细纲】');
-  for (const item of ctx.chapterOutlinesTrail) {
-    const mark = item.isCurrent ? ' ← 请为本章撰写正文' : '';
-    lines.push(`《${item.title}》${mark}`);
-    lines.push(`细纲：${item.outline || '（未填写）'}`);
-    lines.push('');
+/** 与界面「模型配置」一致：DeepSeek OpenAI 兼容 baseURL + apiKey */
+function createDeepSeekOpenAIClient(cfg: LlmKeyConfig): OpenAI {
+  const key = (cfg.apiKey || '').trim();
+  if (!key) {
+    throw new Error('请先在「模型配置」中填写 API Key 并保存');
   }
-  lines.push(
-    `请根据以上内容，撰写《${ctx.currentChapterTitle}》的完整正文。\n` +
-      '段落之间使用空行分隔；语言自然、适合在线阅读。',
-  );
-  return lines.join('\n');
+  const base = ((cfg.apiBase || '').trim() || 'https://api.deepseek.com').replace(/\/$/, '');
+  return new OpenAI({
+    baseURL: base,
+    apiKey: key,
+  });
 }
 
+/**
+ * POST /api/story/:storyId/chapters/:chapterId/generate-body-from-outline
+ * body 可选 { chapterOutline: string } 作为本章细纲草稿。
+ */
 export async function postGenerateChapterBodyFromOutline(
   req: Request,
   res: Response,
@@ -43,22 +58,68 @@ export async function postGenerateChapterBodyFromOutline(
     const rawDraft = req.body?.chapterOutline;
     const chapterOutlineDraft = typeof rawDraft === 'string' ? rawDraft : undefined;
 
-    const ctx = getChapterGenerationContext(storyId, chapterId, chapterOutlineDraft);
-    if (!ctx) {
+    // 同卷目录 + 前后 5 章窗口 + 邻居 id（用于从向量候选中剔除）
+    const bundle = getChapterRagBundle(storyId, chapterId, chapterOutlineDraft);
+    if (!bundle) {
       res.status(404).json({ error: '章节不存在或不是卷下的章' });
       return;
     }
 
     const cfg = readLlmConfig();
-    const model = createChatModel(cfg);
-    const { text } = await generateText({
-      model,
-      system: SYSTEM_PROMPT,
-      prompt: buildUserPrompt(ctx),
+    if (cfg.provider !== 'deepseek') {
+      res.status(400).json({ error: '当前仅支持 DeepSeek 通过 OpenAI 兼容接口生成正文' });
+      return;
+    }
+
+    const modelId = (cfg.model || '').trim();
+    if (!modelId) {
+      res.status(400).json({ error: '请先在模型配置中选择或填写模型' });
+      return;
+    }
+
+    // ---------- RAG：细纲向量 → 相似章 → 拉正文 ----------
+    let retrieved: VectorRetrievedSnip[] = [];
+    const outlineForVec = bundle.currentChapterOutline.trim();
+    if (outlineForVec) {
+      // 查询向量：与库里「章节摘要」嵌入空间可能不完全一致，属已知折中
+      const queryVec = await generateEmbedding(outlineForVec);
+      const candidates = listChapterEmbeddingsWithVectorsForStory(storyId);
+      const ranked = topKSimilarByEmbedding(
+        queryVec,
+        candidates,
+        bundle.neighborChapterIds,
+        RAG_TOP_K,
+      );
+      for (const { chapterId: cid, score } of ranked) {
+        const ch = getChapterById(storyId, cid);
+        if (!ch || ch.parentId == null) continue;
+        const plain = tipTapJsonStringToPlain(ch.content);
+        if (!plain.trim()) continue;
+        retrieved.push({ title: ch.title, plainText: plain, score });
+      }
+    }
+
+    const userPrompt = buildRagChapterBodyUserPrompt(bundle, retrieved);
+
+    const client = createDeepSeekOpenAIClient(cfg);
+    const deepseekOptions = {
+      thinking: { type: 'enabled' as const },
+      reasoning_effort: 'high' as const,
+    };
+
+    const completion = await client.chat.completions.create({
+      model: modelId,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: userPrompt },
+      ],
       temperature: 0.65,
+      stream: false,
+      ...deepseekOptions,
     });
 
-    const content = (text ?? '').trim();
+    const raw = completion.choices[0]?.message?.content;
+    const content = typeof raw === 'string' ? raw.trim() : '';
     if (!content) {
       res.status(502).json({ error: '模型未返回正文' });
       return;

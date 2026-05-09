@@ -36,7 +36,6 @@ export function getDb(): Database.Database {
  */
 export function ensureLlmConfigTable(): void {
   const database = getDb();
-  console.log('ensureLlmConfigTable', database);
   database.exec(`
     CREATE TABLE IF NOT EXISTS llm_config (
       id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -99,5 +98,33 @@ export function ensureStoryChapterTable(): void {
   }
   if (!cols.some((c) => c.name === 'content')) {
     database.exec('ALTER TABLE story_chapter ADD COLUMN content TEXT NOT NULL DEFAULT "";');
+  }
+}
+
+/** 章节摘要的向量：每故事+章节唯一一行，覆盖写入 */
+export function ensureStoryChapterEmbeddingTable(): void {
+  const database = getDb();
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS story_chapter_embedding (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      story_id INTEGER NOT NULL,
+      chapter_id INTEGER NOT NULL,
+      source_text TEXT NOT NULL,
+      embedding TEXT NOT NULL,
+      embedding_model TEXT NOT NULL DEFAULT '',
+      dimensions INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (story_id) REFERENCES story_list(id) ON DELETE CASCADE,
+      FOREIGN KEY (chapter_id) REFERENCES story_chapter(id) ON DELETE CASCADE,
+      UNIQUE(story_id, chapter_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_story_chapter_embedding_story ON story_chapter_embedding(story_id);
+    CREATE INDEX IF NOT EXISTS idx_story_chapter_embedding_chapter ON story_chapter_embedding(chapter_id);
+  `);
+  const embCols = database.prepare('PRAGMA table_info(story_chapter_embedding)').all() as { name: string }[];
+  if (!embCols.some((c) => c.name === 'summary_json')) {
+    database.exec(
+      'ALTER TABLE story_chapter_embedding ADD COLUMN summary_json TEXT NOT NULL DEFAULT "";',
+    );
   }
 }

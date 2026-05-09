@@ -7,6 +7,7 @@ import { storyApi } from '../../../api/story'
 import ZhangJie from './mulu'
 import WritePage, { type WriteTreeSelection } from './novel/writePage'
 import StoryOutlineDialog from './storyOutlineDialog'
+import RagPage from './helper/rag'
 
 const Story: React.FC = () => {
   const [searchParams] = useSearchParams()
@@ -100,7 +101,7 @@ const Story: React.FC = () => {
         </Content>
 
         <Sider width={320} theme="light" collapsible breakpoint="lg">
-          右侧ai辅助面板
+          <RagPage />
         </Sider>
       </Layout>
 

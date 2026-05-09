@@ -11,6 +11,8 @@ import {
   putStoryChapter,
 } from '../controller/chapter.js';
 import { postGenerateChapterBodyFromOutline } from '../controller/chapterGenerateBody.js';
+import { postSummarizeChapterBodyForVector } from '../controller/chapterSummarizeForVector.js';
+import { postSaveChapterEmbedding } from '../controller/chapterSaveEmbedding.js';
 
 const router = Router();
 
@@ -28,6 +30,11 @@ router.post(
   '/story/:storyId/chapters/:chapterId/generate-body-from-outline',
   postGenerateChapterBodyFromOutline,
 );
+router.post(
+  '/story/:storyId/chapters/:chapterId/summarize-body-for-vector',
+  postSummarizeChapterBodyForVector,
+);
+router.post('/story/:storyId/chapters/:chapterId/embedding', postSaveChapterEmbedding);
 router.post('/story/:storyId/chapters/volume', postStoryVolume);
 router.post('/story/:storyId/chapters', postStoryChapter);
 router.put('/story/:storyId/chapters/:chapterId', putStoryChapter);
