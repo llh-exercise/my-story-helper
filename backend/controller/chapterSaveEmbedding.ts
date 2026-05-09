@@ -2,8 +2,9 @@ import type { Request, Response } from 'express';
 import { getChapterById } from '../service/chapter.js';
 import { upsertChapterEmbedding } from '../service/chapterEmbedding.js';
 import type { ChapterVectorSummaryPayload } from '../types/chapterTypes.js';
+import { readLlmConfigForEmbedding } from '../service/config.js';
 import { chapterSummaryToSourceText } from '../utils/chapterVectorSummaryText.js';
-import { EMBEDDING_MODEL_ID, generateEmbedding } from '../utils/generateEmbedding.js';
+import { generateEmbedding } from '../utils/generateEmbedding.js';
 
 type SummaryBody = {
   characters?: unknown;
@@ -31,7 +32,7 @@ function normalizeSummary(body: unknown): ChapterVectorSummaryPayload | null {
 }
 
 /**
- * POST body: { summary }，写入摘要并通过阿里云 DashScope（千问兼容模式）Embeddings 生成向量后入库
+ * POST body: { summary }，写入摘要并按 llm_config「生成向量」配置调用 Embeddings 后入库
  */
 export async function postSaveChapterEmbedding(req: Request, res: Response): Promise<void> {
   try {
@@ -61,12 +62,15 @@ export async function postSaveChapterEmbedding(req: Request, res: Response): Pro
       return;
     }
 
+    const embCfg = readLlmConfigForEmbedding();
+    const embeddingModel =
+      (embCfg.model || '').trim() || 'text-embedding-v3';
     const embedding = await generateEmbedding(sourceText);
     const saved = upsertChapterEmbedding(storyId, chapterId, {
       summary,
       sourceText,
       embedding,
-      embeddingModel: EMBEDDING_MODEL_ID,
+      embeddingModel,
     });
 
     res.json({

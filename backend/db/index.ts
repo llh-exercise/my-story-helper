@@ -2,6 +2,13 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
+import {
+  LLM_PURPOSE_GENERATE_EMBEDDING,
+  LLM_PURPOSE_GENERATE_TEXT,
+} from '../types/llmKeyTypes.js';
+
+/** 新建 / 补行时「生成向量」的默认兼容地址（API Key 请自行写入数据库，勿写死在代码里） */
+const DEFAULT_EMBEDDING_API_BASE = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
 
 /**
  * backend 包根目录（含 package.json、data/）。
@@ -32,29 +39,46 @@ export function getDb(): Database.Database {
 }
 
 /**
- * 大模型 API 配置（单行 id=1，与旧版 config.json 等价）
+ * 大模型配置：按 purpose（生成文字 / 生成向量）各一行，PRIMARY KEY(purpose)。
+ * 表不存在则创建；某用途缺失则插入默认空配置（Key 需自行入库或通过设置页写入「生成文字」）。
  */
 export function ensureLlmConfigTable(): void {
   const database = getDb();
   database.exec(`
     CREATE TABLE IF NOT EXISTS llm_config (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
+      purpose TEXT PRIMARY KEY,
       provider TEXT NOT NULL DEFAULT 'deepseek',
       api_key TEXT NOT NULL DEFAULT '',
       api_base TEXT NOT NULL DEFAULT '',
-      model TEXT NOT NULL DEFAULT 'deepseek-chat',
+      model TEXT NOT NULL DEFAULT '',
       updated_at INTEGER NOT NULL DEFAULT 0
     );
   `);
-  const cnt = database.prepare('SELECT COUNT(*) AS c FROM llm_config').get() as { c: number };
-  if (Number(cnt.c) === 0) {
+
+  const cntText = database
+    .prepare('SELECT COUNT(*) AS c FROM llm_config WHERE purpose = ?')
+    .get(LLM_PURPOSE_GENERATE_TEXT) as { c: number };
+  if (Number(cntText.c) === 0) {
     const t = Date.now();
     database
       .prepare(
-        `INSERT INTO llm_config (id, provider, api_key, api_base, model, updated_at)
-         VALUES (1, 'deepseek', '', '', 'deepseek-chat', ?)`
+        `INSERT INTO llm_config (purpose, provider, api_key, api_base, model, updated_at)
+         VALUES (?, 'deepseek', '', '', 'deepseek-chat', ?)`,
       )
-      .run(t);
+      .run(LLM_PURPOSE_GENERATE_TEXT, t);
+  }
+
+  const cntEmb = database
+    .prepare('SELECT COUNT(*) AS c FROM llm_config WHERE purpose = ?')
+    .get(LLM_PURPOSE_GENERATE_EMBEDDING) as { c: number };
+  if (Number(cntEmb.c) === 0) {
+    const t = Date.now();
+    database
+      .prepare(
+        `INSERT INTO llm_config (purpose, provider, api_key, api_base, model, updated_at)
+         VALUES (?, 'dashscope', '', ?, 'text-embedding-v3', ?)`,
+      )
+      .run(LLM_PURPOSE_GENERATE_EMBEDDING, DEFAULT_EMBEDDING_API_BASE, t);
   }
 }
 

@@ -1,5 +1,9 @@
 import { getDb } from '../db/index.js';
 import type { LlmKeyConfig, LlmProvider } from '../types/llmKeyTypes.js';
+import {
+  LLM_PURPOSE_GENERATE_EMBEDDING,
+  LLM_PURPOSE_GENERATE_TEXT,
+} from '../types/llmKeyTypes.js';
 
 const DEFAULT_CONFIG: LlmKeyConfig = {
   provider: 'deepseek',
@@ -15,7 +19,26 @@ type LlmConfigRow = {
   model: string;
 };
 
-function normalizeConfig(cfg: LlmKeyConfig): LlmKeyConfig {
+function normalizeProvider(raw: string): LlmProvider {
+  if (raw === 'doubao') return 'doubao';
+  if (raw === 'dashscope') return 'dashscope';
+  return 'deepseek';
+}
+
+function rowToConfig(row: LlmConfigRow): LlmKeyConfig {
+  return {
+    provider: normalizeProvider(row.provider || 'deepseek'),
+    apiKey: typeof row.api_key === 'string' ? row.api_key : '',
+    apiBase: typeof row.api_base === 'string' ? row.api_base : '',
+    model:
+      typeof row.model === 'string' && row.model
+        ? row.model
+        : DEFAULT_CONFIG.model,
+  };
+}
+
+/** 界面保存的「生成文字」配置仅允许 deepseek / doubao */
+function normalizeTextConfig(cfg: LlmKeyConfig): LlmKeyConfig {
   const apiKey = typeof cfg.apiKey === 'string' ? cfg.apiKey : '';
   const apiBase = typeof cfg.apiBase === 'string' ? cfg.apiBase : '';
   const model = typeof cfg.model === 'string' ? cfg.model : '';
@@ -27,61 +50,88 @@ function normalizeConfig(cfg: LlmKeyConfig): LlmKeyConfig {
   };
 }
 
-function upsertLlmConfig(normalized: LlmKeyConfig): void {
+function upsertLlmConfigByPurpose(purpose: string, normalized: LlmKeyConfig): void {
   const db = getDb();
   const t = Date.now();
   db.prepare(
-    `INSERT INTO llm_config (id, provider, api_key, api_base, model, updated_at)
-     VALUES (1, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET
+    `INSERT INTO llm_config (purpose, provider, api_key, api_base, model, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(purpose) DO UPDATE SET
        provider = excluded.provider,
        api_key = excluded.api_key,
        api_base = excluded.api_base,
        model = excluded.model,
-       updated_at = excluded.updated_at`
+       updated_at = excluded.updated_at`,
   ).run(
+    purpose,
     normalized.provider,
     normalized.apiKey,
     normalized.apiBase,
     normalized.model,
-    t
+    t,
   );
 }
 
-/** 将大模型配置写入 SQLite（llm_config 表，id=1） */
+/** 将「生成文字」用途的配置写入 SQLite（界面模型配置） */
 export function writeLlmConfig(cfg: LlmKeyConfig): void {
-  const normalized = normalizeConfig(cfg);
+  const normalized = normalizeTextConfig(cfg);
   try {
-    upsertLlmConfig(normalized);
+    upsertLlmConfigByPurpose(LLM_PURPOSE_GENERATE_TEXT, normalized);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     throw new Error(`写入数据库 llm_config 失败: ${msg}`);
   }
 }
 
-/** 从 SQLite 读取配置；无行或损坏时返回默认 */
+/** 读取「生成文字」用途配置（对话、摘要、正文生成等） */
 export function readLlmConfig(): LlmKeyConfig {
   try {
     const db = getDb();
     const row = db
       .prepare(
-        'SELECT provider, api_key, api_base, model FROM llm_config WHERE id = 1'
+        'SELECT provider, api_key, api_base, model FROM llm_config WHERE purpose = ?',
       )
-      .get() as LlmConfigRow | undefined;
+      .get(LLM_PURPOSE_GENERATE_TEXT) as LlmConfigRow | undefined;
     if (!row) {
       return { ...DEFAULT_CONFIG };
     }
-    return {
-      provider: (row.provider === 'doubao' ? 'doubao' : 'deepseek') as LlmProvider,
-      apiKey: typeof row.api_key === 'string' ? row.api_key : '',
-      apiBase: typeof row.api_base === 'string' ? row.api_base : '',
-      model:
-        typeof row.model === 'string' && row.model
-          ? row.model
-          : DEFAULT_CONFIG.model,
-    };
+    return rowToConfig(row);
   } catch {
     return { ...DEFAULT_CONFIG };
+  }
+}
+
+/** 读取「生成向量」用途配置（DashScope 等嵌入） */
+export function readLlmConfigForEmbedding(): LlmKeyConfig {
+  try {
+    const db = getDb();
+    const row = db
+      .prepare(
+        'SELECT provider, api_key, api_base, model FROM llm_config WHERE purpose = ?',
+      )
+      .get(LLM_PURPOSE_GENERATE_EMBEDDING) as LlmConfigRow | undefined;
+    if (!row) {
+      return {
+        provider: 'dashscope',
+        apiKey: '',
+        apiBase: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+        model: 'text-embedding-v3',
+      };
+    }
+    const c = rowToConfig(row);
+    const rawModel = typeof row.model === 'string' ? row.model.trim() : '';
+    c.model = rawModel || 'text-embedding-v3';
+    if (!c.apiBase.trim()) {
+      c.apiBase = 'https://dashscope.aliyuncs.com/compatible-mode/v1';
+    }
+    return c;
+  } catch {
+    return {
+      provider: 'dashscope',
+      apiKey: '',
+      apiBase: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      model: 'text-embedding-v3',
+    };
   }
 }
 
